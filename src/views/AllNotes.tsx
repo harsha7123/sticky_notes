@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { api, ago, inUserOrder, snippetOf, titleOf, useNotes, MOD, type Note } from "../api";
+import { api, ago, inUserOrder, listenEvent, snippetOf, titleOf, useNotes, MOD, type Note } from "../api";
+import { pickOpenPath, pickSavePath } from "../platform";
+import { isTauri, useWin } from "../win";
 import { COLORS, nextColor } from "../colors";
 import { useReorder } from "../useReorder";
 import { TitleBar } from "../components/TitleBar";
@@ -41,7 +40,7 @@ const sorters: Record<Exclude<Sort, "manual">, (a: Note, b: Note) => number> = {
 };
 
 export function AllNotes() {
-  const win = getCurrentWindow();
+  const win = useWin();
   const notes = useNotes();
   const [tab, setTab] = useState<Tab>(window.__INITIAL_TAB__ ?? "notes");
   const [query, setQuery] = useState("");
@@ -59,7 +58,7 @@ export function AllNotes() {
   }, [notes]);
 
   useEffect(() => {
-    const un = listen<Tab>("all-tab", (e) => setTab(e.payload));
+    const un = listenEvent<Tab>("all-tab", setTab);
     return () => {
       un.then((u) => u());
     };
@@ -129,16 +128,14 @@ export function AllNotes() {
         else win.close();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return win.onKey(onKey);
   }, [query, toast]);
 
   const doExport = async (format: "json" | "md") => {
     const stamp = new Date().toISOString().slice(0, 10);
-    const path = await save({
-      defaultPath: `edgenotes-${stamp}.${format}`,
-      filters: [format === "json" ? { name: "JSON", extensions: ["json"] } : { name: "Markdown", extensions: ["md"] }],
-    });
+    const path = isTauri
+      ? await pickSavePath(`edgenotes-${stamp}.${format}`, format === "json" ? "JSON" : "Markdown", format)
+      : "download";
     if (!path) return;
     try {
       const n = await api.exportNotes(path, format);
@@ -149,11 +146,12 @@ export function AllNotes() {
   };
 
   const doImport = async () => {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "Notes", extensions: ["json", "md", "txt"] }],
-    });
-    if (typeof path !== "string") return;
+    if (!isTauri) {
+      setToast({ text: "Import is available in the desktop app." });
+      return;
+    }
+    const path = await pickOpenPath();
+    if (!path) return;
     try {
       const n = await api.importNotes(path);
       setToast({ text: `Imported ${n} ${n === 1 ? "note" : "notes"}.` });

@@ -1,7 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import type { ColorId } from "./colors";
+import { isTauri } from "./win";
+import { mockInvoke, mockListen } from "./demo/mock";
+
+const invoke = <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> =>
+  isTauri ? tauriInvoke<T>(cmd, args) : mockInvoke<T>(cmd, args);
+
+/** Listen to a backend broadcast (Tauri event, or the demo's emitter). */
+export function listenEvent<T>(event: string, cb: (payload: T) => void): Promise<() => void> {
+  return isTauri ? tauriListen<T>(event, (e) => cb(e.payload)) : Promise.resolve(mockListen<T>(event, cb));
+}
 
 export type Note = {
   id: string;
@@ -52,7 +62,7 @@ function useBroadcast<T>(load: () => Promise<T>, event: string): T | null {
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | undefined;
-    listen<T>(event, (e) => setValue(e.payload)).then((u) => {
+    listenEvent<T>(event, setValue).then((u) => {
       if (cancelled) u();
       else unlisten = u;
     });

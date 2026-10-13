@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, ago, useNotes, MOD, type Note } from "../api";
+import { openExternal } from "../platform";
+import { useWin } from "../win";
 import { COLORS, COLOR_NAMES, nextColor } from "../colors";
 import { editorExtensions } from "../editor";
 import { ArchiveIcon, CloseIcon, PaletteIcon, PinIcon, TrashIcon } from "../components/icons";
@@ -11,7 +11,7 @@ const UNDO_SECONDS = 10;
 const SAVE_DELAY = 350;
 
 export function NoteWindow({ id }: { id: string }) {
-  const win = getCurrentWindow();
+  const win = useWin();
   const notes = useNotes();
   const note = notes?.find((n) => n.id === id);
 
@@ -37,7 +37,7 @@ export function NoteWindow({ id }: { id: string }) {
       handleClick: (_view, _pos, event) => {
         const link = (event.target as HTMLElement).closest("a");
         if (link && (event.ctrlKey || event.metaKey)) {
-          openUrl(link.href);
+          openExternal(link.href);
           return true;
         }
         return false;
@@ -59,8 +59,11 @@ export function NoteWindow({ id }: { id: string }) {
     if (!editor || !note || lastSaved.current !== null) return;
     editor.commands.setContent(note.html || "", false);
     lastSaved.current = editor.getHTML();
-    win.show().then(() => win.setFocus());
-    editor.commands.focus("end");
+    // Focus only once the window is visible, or the caret never lands.
+    win
+      .show()
+      .then(() => win.setFocus())
+      .then(() => requestAnimationFrame(() => editor.commands.focus("end")));
   }, [editor, note]);
 
   // Apply changes made elsewhere (e.g. an import) unless the user is typing here.
@@ -167,8 +170,7 @@ export function NoteWindow({ id }: { id: string }) {
         openLinkBar();
       }
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    return win.onKey(onKey, true);
   }, [deleted, linkOpen, paletteOpen, note, undo, close, remove]);
 
   // Save if the window is closed some other way.
@@ -262,7 +264,9 @@ export function NoteWindow({ id }: { id: string }) {
       {deleted && (
         <div className="undo-overlay" role="alert">
           <span>Deleted. {countdown}s to undo.</span>
-          <button onClick={undo}>Undo ({MOD}+Z)</button>
+          <button onClick={undo} autoFocus>
+            Undo ({MOD}+Z)
+          </button>
         </div>
       )}
     </div>

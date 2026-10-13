@@ -1,9 +1,9 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ReactNode } from "react";
+import { useWin } from "../win";
 import { CloseIcon, MinusIcon } from "./icons";
 
 export function TitleBar({ title, children }: { title?: string; children?: ReactNode }) {
-  const win = getCurrentWindow();
+  const win = useWin();
   return (
     <header className="titlebar" data-tauri-drag-region>
       {title && (

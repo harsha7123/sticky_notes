@@ -1,14 +1,17 @@
 import { useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettings } from "./api";
+import { currentLabel, isTauri } from "./win";
 import { Deck } from "./views/Deck";
 import { NoteWindow } from "./views/NoteWindow";
 import { AllNotes } from "./views/AllNotes";
 import { SettingsView } from "./views/SettingsView";
+import { DemoDesktop } from "./demo/DemoDesktop";
 import "./styles.css";
 
-const label = getCurrentWindow().label;
+// In the desktop app each window loads this page; its label picks the view.
+// In a plain browser, the whole app runs as a simulated desktop instead.
+const label = isTauri ? currentLabel() : "demo";
 const kind = label.startsWith("note-") ? "note" : label;
 document.body.dataset.view = kind;
 
@@ -25,6 +28,8 @@ function Themed({ children }: { children: React.ReactNode }) {
 
 function View() {
   switch (kind) {
+    case "demo":
+      return <DemoDesktop />;
     case "deck":
       return <Deck />;
     case "note":
@@ -37,10 +42,12 @@ function View() {
 }
 
 // Plain context menus don't belong in a native-feeling app (editor fields keep theirs).
-document.addEventListener("contextmenu", (e) => {
-  const t = e.target as HTMLElement;
-  if (!t.closest("input, textarea, [contenteditable=true]")) e.preventDefault();
-});
+if (isTauri) {
+  document.addEventListener("contextmenu", (e) => {
+    const t = e.target as HTMLElement;
+    if (!t.closest("input, textarea, [contenteditable=true]")) e.preventDefault();
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <Themed>

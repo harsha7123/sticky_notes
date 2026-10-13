@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getVersion } from "@tauri-apps/api/app";
-import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { api, useSettings, isMac, GLOBAL_MODS, MOD, type Settings } from "../api";
+import { appVersion, autostartEnabled, setAutostart as applyAutostart } from "../platform";
+import { useWin } from "../win";
 import { TitleBar } from "../components/TitleBar";
 
 function Segmented<T extends string>({
@@ -44,16 +43,16 @@ const Keys = ({ keys }: { keys: string[] }) => (
 );
 
 export function SettingsView() {
-  const win = getCurrentWindow();
+  const win = useWin();
   const settings = useSettings();
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [data, setData] = useState<{ path: string; portable: boolean } | null>(null);
   const [version, setVersion] = useState("");
 
   useEffect(() => {
-    isEnabled().then(setAutostart).catch(() => setAutostart(false));
+    autostartEnabled().then(setAutostart).catch(() => setAutostart(false));
     api.dataInfo().then(setData);
-    getVersion().then(setVersion);
+    appVersion().then(setVersion);
   }, []);
 
   useEffect(() => {
@@ -61,9 +60,7 @@ export function SettingsView() {
   }, [settings !== null]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && win.close();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return win.onKey((e) => e.key === "Escape" && win.close());
   }, []);
 
   if (!settings) return null;
@@ -71,10 +68,9 @@ export function SettingsView() {
 
   const toggleAutostart = async (on: boolean) => {
     try {
-      await (on ? enable() : disable());
-      setAutostart(await isEnabled());
+      setAutostart(await applyAutostart(on));
     } catch {
-      setAutostart(await isEnabled().catch(() => false));
+      setAutostart(await autostartEnabled().catch(() => false));
     }
   };
 

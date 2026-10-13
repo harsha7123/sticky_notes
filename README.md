@@ -11,6 +11,16 @@ npm install
 npm run tauri dev
 ```
 
+### Live web demo
+
+The same UI also runs in a plain browser as a simulated desktop (deck on the screen edge, draggable note windows, tray menu), backed by browser storage instead of the Rust core:
+
+```bash
+npm run dev
+```
+
+Then open http://localhost:1420. Use the tray icon's **Reset demo** to restore the sample notes. Import, start-at-login and fullscreen hiding only work in the desktop app.
+
 Release build (installers land in `src-tauri/target/release/bundle/`):
 
 ```bash
